@@ -1,0 +1,1 @@
+Release signing is intentionally not preconfigured. Create a private keystore on your own workstation and keep it outside Git. Configure signing in app/build.gradle.kts using environment variables or an untracked keystore.properties file. Never share the keystore password in chat or commit it.
