@@ -22,6 +22,12 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Check project structure
+        run: |
+          pwd
+          ls -la
+          find . -maxdepth 5 -name "gradlew" -o -name "settings.gradle" -o -name "settings.gradle.kts"
+          
       - name: Build APK
         run: |
           chmod +x gradlew
