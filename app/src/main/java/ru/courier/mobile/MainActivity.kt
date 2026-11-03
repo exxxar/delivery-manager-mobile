@@ -188,7 +188,28 @@ private fun LoginScreen(api: ApiClient, busy: Boolean, error: String, onLogin: (
         Field("Пароль", password, { password = it }, singleLine = true, password = true)
         Field("Tenant ID / slug (необязательно)", tenant, { tenant = it }, singleLine = true)
         if (error.isNotBlank()) Text(error, color = Color(0xFFFF7777), modifier = Modifier.padding(vertical = 8.dp))
-        Button(onClick = { onLogin(login.trim(), password, tenant.trim(), base.trim()) }, enabled = !busy && login.isNotBlank() && password.isNotBlank() && base.startsWith("https://"), modifier = Modifier.fillMaxWidth().height(52.dp)) { if (busy) CircularProgressIndicator(Modifier.size(20.dp)) else Text("ВОЙТИ") }
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = { onLogin(login.trim(), password, tenant.trim(), base.trim().trimEnd('/')) },
+            enabled = !busy &&
+                login.isNotBlank() &&
+                password.isNotBlank() &&
+                (base.trim().startsWith("http://", ignoreCase = true) ||
+                 base.trim().startsWith("https://", ignoreCase = true)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+        ) {
+            if (busy) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = TextMain,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text("ВОЙТИ")
+            }
+        }
         Text("API: /api/desktop • Токен хранится в Android Keystore", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
     }
 }
