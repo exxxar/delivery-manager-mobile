@@ -241,6 +241,7 @@ private fun OrderCard(o: JsonObject, tab: String, onAccept: (String)->Unit, onSt
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Товары: ${o.num("summary_price")} ₽", color = Muted); Text("Доставка: ${o.num("delivery_price")} ₽", color = Muted) }
             Text("Получатель: ${o.str("receiver_name", "не указан")} • ${o.str("receiver_phone", "нет телефона")}", color = Muted, fontSize = 12.sp)
             if (expanded) {
+                OrderProductsSection(o)
                 Text("Примечание: ${o.str("info", "—")}", color = Muted)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (tab == "available") Button(onClick = { onAccept(id) }, modifier = Modifier.weight(1f)) { Text("Принять") }
@@ -262,6 +263,135 @@ private fun OrderCard(o: JsonObject, tab: String, onAccept: (String)->Unit, onSt
         }
     }
 }
+
+@Composable
+private fun OrderProductsSection(order: JsonObject) {
+    val detailsElement = order.get("product_details")
+    val details = when {
+        detailsElement == null || detailsElement.isJsonNull -> null
+        detailsElement.isJsonObject -> detailsElement.asJsonObject
+        detailsElement.isJsonArray -> detailsElement.asJsonArray
+            .firstOrNull { it.isJsonObject }?.asJsonObject
+        else -> null
+    }
+
+    val products = details?.array("products")?.mapNotNull { it.asObjOrNull() }.orEmpty()
+    val source = details?.str("from")?.takeIf { it.isNotBlank() }
+        ?: order.obj("tenant")?.str("name")?.takeIf { it.isNotBlank() }
+        ?: order.str("tenant_name", "Источник не указан")
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Navy.copy(alpha = 0.72f)),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Blue)
+                Spacer(Modifier.width(8.dp))
+                Text("Состав заказа", color = TextMain, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("${products.size} поз.", color = Muted, fontSize = 12.sp)
+            }
+            Text("Источник заказа: $source", color = Blue, fontSize = 12.sp)
+
+            if (products.isEmpty()) {
+                Text(
+                    "Состав товаров не передан сервером в product_details.",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
+            } else {
+                products.forEachIndexed { index, product ->
+                    val name = product.str("name")
+                        .ifBlank { product.str("title", "Товар") }
+                    val shopName = product.str("tenant_name")
+                        .ifBlank { "Заведение не указано" }
+                    val count = product.num("count", 1.0)
+                    val unitPrice = product.num(
+                        "unit_price",
+                        product.num("price", 0.0)
+                    )
+                    val total = product.num(
+                        "price",
+                        unitPrice * count
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text(
+                                "${index + 1}. $name",
+                                color = TextMain,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "${formatOrderMoney(total)} ₽",
+                                color = TextMain,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Store,
+                                contentDescription = null,
+                                tint = Blue,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                shopName,
+                                color = Blue,
+                                fontSize = 12.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Text(
+                            "${formatOrderQuantity(count)} × ${formatOrderMoney(unitPrice)} ₽ за шт.",
+                            color = Muted,
+                            fontSize = 12.sp
+                        )
+
+                        val extras = mutableListOf<String>()
+                        product.array("ingredients")?.forEach { item ->
+                            item.asObjOrNull()?.str("name")?.takeIf { it.isNotBlank() }?.let(extras::add)
+                        }
+                        product.array("components")?.forEach { item ->
+                            item.asObjOrNull()?.let { component ->
+                                (component.str("name").ifBlank { component.str("title") })
+                                    .takeIf { it.isNotBlank() }?.let(extras::add)
+                            }
+                        }
+                        product.str("comment").takeIf { it.isNotBlank() }?.let {
+                            extras.add("Комментарий: $it")
+                        }
+                        if (extras.isNotEmpty()) {
+                            Text(
+                                extras.joinToString(", "),
+                                color = Muted,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                    if (index != products.lastIndex) {
+                        HorizontalDivider(color = Muted.copy(alpha = 0.18f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatOrderMoney(value: Double): String =
+    if (value % 1.0 == 0.0) value.toLong().toString()
+    else String.format(java.util.Locale("ru", "RU"), "%.2f", value)
+
+private fun formatOrderQuantity(value: Double): String =
+    if (value % 1.0 == 0.0) value.toLong().toString()
+    else String.format(java.util.Locale("ru", "RU"), "%g", value)
 
 @Composable
 private fun StatusPill(status: Int) { val label = when(status) { 1 -> "В доставке"; 4 -> "Готов"; 5 -> "Готовится"; 2 -> "Завершён"; else -> "Новый" }; Surface(color = Accent.copy(alpha=.18f), shape = RoundedCornerShape(50)) { Text(label, color = Color(0xFFFF8A80), modifier = Modifier.padding(horizontal=10.dp, vertical=5.dp), fontSize=11.sp) } }
